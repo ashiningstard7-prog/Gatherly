@@ -1,0 +1,960 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  GUEST
+  USER
+  CREATOR
+  HOST
+  FARMER
+  CELEBRITY
+  BUSINESS
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ExperienceStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  RAZORPAY
+  WALLET
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum NotificationType {
+  BOOKING
+  PAYMENT
+  REVIEW
+  MESSAGE
+  SYSTEM
+  PROMOTION
+  SAFETY
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+  ALL_LEVELS
+}
+
+enum HostType {
+  INDIVIDUAL
+  CREATOR
+  FARMER
+  BUSINESS
+  COMMUNITY
+  CELEBRITY
+}
+
+enum FarmActivityType {
+  WEEKEND_FARMING
+  ORGANIC_FARMING
+  HARVEST_FESTIVAL
+  FRUIT_PICKING
+  VEGETABLE_HARVESTING
+  COW_FEEDING
+  ANIMAL_CARE
+  VILLAGE_WALK
+  TRADITIONAL_COOKING
+  FARM_CAMPING
+  BONFIRE
+  TREE_PLANTATION
+  RICE_PLANTATION
+  ORGANIC_WORKSHOP
+  KIDS_FARM_LEARNING
+  PHOTOGRAPHY_TOUR
+  FRESH_FOOD_EXPERIENCE
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+  FREE_SHIPPING
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  REFUND
+  PAYOUT
+}
+
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
+model User {
+  id                String         @id @default(cuid())
+  clerkId           String?        @unique
+  email             String         @unique
+  phone             String?        @unique
+  passwordHash      String?
+  firstName         String?
+  lastName          String?
+  displayName       String?
+  avatar            String?
+  bio               String?
+  role              UserRole       @default(USER)
+  status            UserStatus     @default(PENDING_VERIFICATION)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  emailVerified     Boolean        @default(false)
+  phoneVerified     Boolean        @default(false)
+  dateOfBirth       DateTime?
+  gender            String?
+  languages         String[]       @default([])
+  emergencyContact  String?
+  emergencyPhone    String?
+  referralCode      String         @unique @default(cuid())
+  referredById      String?
+  referredBy        User?          @relation("Referrals", fields: [referredById], references: [id])
+  referrals         User[]         @relation("Referrals")
+  walletBalance     Decimal        @default(0) @db.Decimal(12, 2)
+  darkMode          Boolean        @default(false)
+  lastLoginAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  profile           UserProfile?
+  hostProfile       HostProfile?
+  farmerProfile     FarmerProfile?
+  addresses         Address[]
+  bookings          Booking[]
+  reviews           Review[]
+  wishlists         Wishlist[]
+  notifications     Notification[]
+  sentMessages      Message[]      @relation("SentMessages")
+  receivedMessages  Message[]      @relation("ReceivedMessages")
+  conversations     ConversationParticipant[]
+  followers         Follow[]       @relation("Following")
+  following         Follow[]       @relation("Followers")
+  posts             Post[]
+  postLikes         PostLike[]
+  postComments      PostComment[]
+  achievements      UserAchievement[]
+  paymentMethods    PaymentMethod[]
+  transactions      Transaction[]
+  payouts           Payout[]
+  coupons           CouponUsage[]
+  supportTickets    SupportTicket[]
+  auditLogs         AuditLog[]     @relation("AuditActor")
+  experiences       Experience[]   @relation("ExperienceHost")
+  incidents         IncidentReport[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([referralCode])
+  @@map("users")
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline        String?
+  website         String?
+  socialLinks     Json?
+  interests       String[] @default([])
+  preferredCategories String[] @default([])
+  accessibilityNeeds String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String?
+  street      String
+  city        String
+  state       String?
+  country     String
+  postalCode  String?
+  latitude    Float?
+  longitude   Float?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+// ─── Host & Farmer Profiles ──────────────────────────────────────────────────
+
+model HostProfile {
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hostType            HostType           @default(INDIVIDUAL)
+  businessName        String?
+  tagline             String?
+  description         String?
+  verificationStatus  VerificationStatus @default(UNVERIFIED)
+  kycDocumentUrl      String?
+  identityVerified    Boolean            @default(false)
+  subscriptionPlan    SubscriptionPlan   @default(FREE)
+  totalExperiences    Int                @default(0)
+  totalBookings       Int                @default(0)
+  averageRating       Float              @default(0)
+  totalReviews        Int                @default(0)
+  totalRevenue        Decimal            @default(0) @db.Decimal(12, 2)
+  responseRate        Float              @default(0)
+  responseTime        Int?
+  isSuperhost         Boolean            @default(false)
+  approvedAt          DateTime?
+  approvedById        String?
+  stripeAccountId     String?
+  razorpayAccountId   String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  availability        HostAvailability[]
+  payouts             Payout[]
+
+  @@index([verificationStatus])
+  @@index([hostType])
+  @@map("host_profiles")
+}
+
+model FarmerProfile {
+  id                  String             @id @default(cuid())
+  userId              String             @unique
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmName            String
+  farmDescription     String?
+  farmSize            Float?
+  farmSizeUnit        String?
+  location            String
+  latitude            Float?
+  longitude           Float?
+  crops               String[]           @default([])
+  seasons             String[]           @default([])
+  equipment           String[]           @default([])
+  safetyRules         String?
+  capacity            Int                @default(10)
+  verificationStatus  VerificationStatus @default(UNVERIFIED)
+  photos              String[]           @default([])
+  videos              String[]           @default([])
+  totalVisitors       Int                @default(0)
+  averageRating       Float              @default(0)
+  totalReviews        Int                @default(0)
+  totalRevenue        Decimal            @default(0) @db.Decimal(12, 2)
+  approvedAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  farmActivities      FarmActivity[]
+  harvestRecords      HarvestRecord[]
+
+  @@index([verificationStatus])
+  @@map("farmer_profiles")
+}
+
+model FarmActivity {
+  id              String           @id @default(cuid())
+  farmerProfileId String
+  farmerProfile   FarmerProfile    @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  activityType    FarmActivityType
+  title           String
+  description     String?
+  duration        Int?
+  price           Decimal          @db.Decimal(10, 2)
+  maxParticipants Int              @default(10)
+  seasonStart     String?
+  seasonEnd       String?
+  isActive        Boolean          @default(true)
+  experienceId    String?          @unique
+  experience      Experience?      @relation(fields: [experienceId], references: [id])
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([farmerProfileId])
+  @@index([activityType])
+  @@map("farm_activities")
+}
+
+model HarvestRecord {
+  id              String        @id @default(cuid())
+  farmerProfileId String
+  farmerProfile   FarmerProfile @relation(fields: [farmerProfileId], references: [id], onDelete: Cascade)
+  cropName        String
+  quantity        Float
+  unit            String
+  harvestDate     DateTime
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([farmerProfileId])
+  @@map("harvest_records")
+}
+
+model HostAvailability {
+  id            String      @id @default(cuid())
+  hostProfileId String
+  hostProfile   HostProfile @relation(fields: [hostProfileId], references: [id], onDelete: Cascade)
+  dayOfWeek     Int
+  startTime     String
+  endTime       String
+  isAvailable   Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([hostProfileId])
+  @@map("host_availability")
+}
+
+// ─── Categories & Experiences ────────────────────────────────────────────────
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  slug        String     @unique
+  description String?
+  icon        String?
+  image       String?
+  color       String?
+  parentId    String?
+  parent      Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryTree")
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  isFeatured  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  experiences ExperienceCategory[]
+
+  @@index([slug])
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Experience {
+  id                String           @id @default(cuid())
+  hostId            String
+  host              User             @relation("ExperienceHost", fields: [hostId], references: [id])
+  title             String
+  slug              String           @unique
+  description       String
+  shortDescription  String?
+  status            ExperienceStatus @default(DRAFT)
+  hostType          HostType         @default(INDIVIDUAL)
+  difficulty        DifficultyLevel  @default(ALL_LEVELS)
+  duration          Int
+  durationUnit      String           @default("minutes")
+  maxParticipants   Int              @default(10)
+  minParticipants   Int              @default(1)
+  price             Decimal          @db.Decimal(10, 2)
+  currency          String           @default("USD")
+  location          String
+  latitude          Float?
+  longitude         Float?
+  address           String?
+  city              String?
+  country           String?
+  languages         String[]         @default(["English"])
+  includes          String[]         @default([])
+  requirements      String[]         @default([])
+  accessibility     String?
+  cancellationPolicy String?
+  isFeatured        Boolean          @default(false)
+  isFarmExperience  Boolean          @default(false)
+  averageRating     Float            @default(0)
+  totalReviews      Int              @default(0)
+  totalBookings     Int              @default(0)
+  viewCount         Int              @default(0)
+  coverImage        String?
+  images            String[]         @default([])
+  videos            String[]         @default([])
+  tags              String[]         @default([])
+  publishedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  categories        ExperienceCategory[]
+  schedules         ExperienceSchedule[]
+  bookings          Booking[]
+  reviews           Review[]
+  wishlists         Wishlist[]
+  farmActivity      FarmActivity?
+
+  @@index([hostId])
+  @@index([status])
+  @@index([slug])
+  @@index([city])
+  @@index([isFeatured])
+  @@index([isFarmExperience])
+  @@index([price])
+  @@index([averageRating])
+  @@map("experiences")
+}
+
+model ExperienceCategory {
+  experienceId String
+  categoryId   String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([experienceId, categoryId])
+  @@map("experience_categories")
+}
+
+model ExperienceSchedule {
+  id           String     @id @default(cuid())
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  startTime    DateTime
+  endTime      DateTime
+  spotsTotal   Int
+  spotsBooked  Int        @default(0)
+  price        Decimal?   @db.Decimal(10, 2)
+  isRecurring  Boolean    @default(false)
+  recurrenceRule String?
+  isCancelled  Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  bookings     Booking[]
+  waitlist     WaitlistEntry[]
+
+  @@index([experienceId])
+  @@index([startTime])
+  @@map("experience_schedules")
+}
+
+// ─── Bookings & Payments ─────────────────────────────────────────────────────
+
+model Booking {
+  id              String        @id @default(cuid())
+  bookingNumber   String        @unique
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  experienceId    String
+  experience      Experience    @relation(fields: [experienceId], references: [id])
+  scheduleId      String
+  schedule        ExperienceSchedule @relation(fields: [scheduleId], references: [id])
+  status          BookingStatus @default(PENDING)
+  participants    Int           @default(1)
+  subtotal        Decimal       @db.Decimal(10, 2)
+  discount        Decimal       @default(0) @db.Decimal(10, 2)
+  tax             Decimal       @default(0) @db.Decimal(10, 2)
+  total           Decimal       @db.Decimal(10, 2)
+  currency        String        @default("USD")
+  qrCode          String?
+  checkedInAt     DateTime?
+  checkedInLat    Float?
+  checkedInLng    Float?
+  cancelledAt     DateTime?
+  cancellationReason String?
+  specialRequests String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  payment         Payment?
+  review          Review?
+  transactions    Transaction[]
+
+  @@index([userId])
+  @@index([experienceId])
+  @@index([status])
+  @@index([bookingNumber])
+  @@map("bookings")
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  bookingId       String          @unique
+  booking         Booking         @relation(fields: [bookingId], references: [id])
+  provider        PaymentProvider
+  status          PaymentStatus   @default(PENDING)
+  amount          Decimal         @db.Decimal(10, 2)
+  currency        String          @default("USD")
+  providerPaymentId String?
+  providerIntentId  String?
+  refundAmount    Decimal?        @db.Decimal(10, 2)
+  refundedAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([providerPaymentId])
+  @@map("payments")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  bookingId   String?
+  booking     Booking?        @relation(fields: [bookingId], references: [id])
+  type        String
+  amount      Decimal         @db.Decimal(10, 2)
+  currency    String          @default("USD")
+  description String?
+  provider    PaymentProvider?
+  status      PaymentStatus   @default(PENDING)
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@map("transactions")
+}
+
+model Payout {
+  id            String       @id @default(cuid())
+  hostProfileId String
+  hostProfile   HostProfile  @relation(fields: [hostProfileId], references: [id])
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  amount        Decimal      @db.Decimal(10, 2)
+  currency      String       @default("USD")
+  status        PayoutStatus @default(PENDING)
+  provider      PaymentProvider
+  providerPayoutId String?
+  periodStart   DateTime?
+  periodEnd     DateTime?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([hostProfileId])
+  @@index([status])
+  @@map("payouts")
+}
+
+model PaymentMethod {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        PaymentProvider
+  providerMethodId String
+  type            String
+  last4           String?
+  brand           String?
+  expiryMonth     Int?
+  expiryYear      Int?
+  isDefault       Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@map("payment_methods")
+}
+
+// ─── Reviews & Ratings ───────────────────────────────────────────────────────
+
+model Review {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id])
+  bookingId    String     @unique
+  booking      Booking    @relation(fields: [bookingId], references: [id])
+  rating       Int
+  title        String?
+  comment      String?
+  photos       String[]   @default([])
+  isVerified   Boolean    @default(true)
+  isModerated  Boolean    @default(false)
+  hostReply    String?
+  hostReplyAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([experienceId])
+  @@index([userId])
+  @@index([rating])
+  @@map("reviews")
+}
+
+// ─── Wishlist & Waitlist ─────────────────────────────────────────────────────
+
+model Wishlist {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experienceId String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, experienceId])
+  @@map("wishlists")
+}
+
+model WaitlistEntry {
+  id         String             @id @default(cuid())
+  scheduleId String
+  schedule   ExperienceSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  email      String
+  name       String?
+  notified   Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+
+  @@index([scheduleId])
+  @@map("waitlist_entries")
+}
+
+// ─── Coupons ─────────────────────────────────────────────────────────────────
+
+model Coupon {
+  id            String     @id @default(cuid())
+  code          String     @unique
+  type          CouponType
+  value         Decimal    @db.Decimal(10, 2)
+  minPurchase   Decimal?   @db.Decimal(10, 2)
+  maxDiscount   Decimal?   @db.Decimal(10, 2)
+  usageLimit    Int?
+  usageCount    Int        @default(0)
+  validFrom     DateTime
+  validUntil    DateTime
+  isActive      Boolean    @default(true)
+  hostId        String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  usages        CouponUsage[]
+
+  @@index([code])
+  @@map("coupons")
+}
+
+model CouponUsage {
+  id       String   @id @default(cuid())
+  couponId String
+  coupon   Coupon   @relation(fields: [couponId], references: [id])
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  usedAt   DateTime @default(now())
+
+  @@unique([couponId, userId])
+  @@map("coupon_usages")
+}
+
+// ─── Messaging ───────────────────────────────────────────────────────────────
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  experienceId String?
+  lastMessageAt DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User          @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId     String
+  receiver       User          @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content        String
+  attachments    String[]      @default([])
+  status         MessageStatus @default(SENT)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@map("messages")
+}
+
+// ─── Social ──────────────────────────────────────────────────────────────────
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Post {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String?
+  images    String[]      @default([])
+  videos    String[]      @default([])
+  experienceId String?
+  isStory   Boolean       @default(false)
+  expiresAt DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  likes     PostLike[]
+  comments  PostComment[]
+
+  @@index([userId])
+  @@map("posts")
+}
+
+model PostLike {
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@map("post_comments")
+}
+
+// ─── Achievements & Badges ───────────────────────────────────────────────────
+
+model Achievement {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  description String
+  icon        String?
+  criteria    Json?
+  points      Int               @default(0)
+  createdAt   DateTime          @default(now())
+
+  users       UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  earnedAt      DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ─── Support & Safety ────────────────────────────────────────────────────────
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  subject   String
+  message   String
+  status    String   @default("open")
+  priority  String   @default("normal")
+  category  String?
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model IncidentReport {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  experienceId String?
+  bookingId   String?
+  type        String
+  description String
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  photos      String[] @default([])
+  status      String   @default("reported")
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("incident_reports")
+}
+
+// ─── CMS & Admin ─────────────────────────────────────────────────────────────
+
+model CmsPage {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  content   String
+  metaTitle String?
+  metaDescription String?
+  isPublished Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cms_pages")
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  actorId   String?
+  actor     User?       @relation("AuditActor", fields: [actorId], references: [id])
+  action    AuditAction
+  entity    String
+  entityId  String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([actorId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model PlatformStat {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  label     String?
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_stats")
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}
