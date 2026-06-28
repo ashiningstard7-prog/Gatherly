@@ -21,7 +21,7 @@ Think Airbnb Experiences meets the creator economy — with a unique **Farm Week
 
 This project represents my approach to building **investor-ready startup MVPs** — scalable architecture, clean code, and production-minded security from day one.
 
-🔗 GitHub: [ADD YOUR REPO LINK AFTER PUSH]
+🔗 GitHub: https://github.com/ashiningstard7-prog/Gatherly
 
 Open to feedback, collaboration, and opportunities in full-stack / startup engineering.
 
@@ -39,7 +39,7 @@ Built **Gatherly** — a full-stack experience marketplace MVP 🌾
 
 From fitness bootcamps to farm weekends — helping people monetize skills and share real-world experiences.
 
-Code: [ADD GITHUB LINK]
+Code: https://github.com/ashiningstard7-prog/Gatherly
 
 #FullStackDeveloper #NextJS #TypeScript #BuildInPublic
 
@@ -63,7 +63,7 @@ I recently shipped an MVP structured for scale:
 
 Not just a landing page — dashboards, seed data, API docs, deployment guides, and a Phase 2 roadmap (Clerk, Stripe, Maps, AI recommendations).
 
-Repo: [ADD GITHUB LINK]
+Repo: https://github.com/ashiningstard7-prog/Gatherly
 
 Happy to discuss architecture decisions or tradeoffs.
 
